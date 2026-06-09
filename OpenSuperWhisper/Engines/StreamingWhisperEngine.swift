@@ -357,6 +357,12 @@ final class StreamingWhisperEngine {
         if settings.shouldApplyAsianAutocorrect && !result.isEmpty {
             result = AutocorrectWrapper.format(result)
         }
+        // Apply custom-dictionary replacements to the final live text, like the file path
+        // (WhisperEngine / FluidAudioEngine). Runs on the whisper queue against the captured
+        // settings snapshot, on the complete text only — never on partial segments.
+        if settings.shouldApplyCustomDictionary {
+            result = CustomDictionary.apply(result, entries: settings.customDictionaryEntries)
+        }
         return result
     }
 
@@ -376,7 +382,15 @@ final class StreamingWhisperEngine {
         params.detectLanguage = false
         params.temperature = Float(settings.temperature)
         params.noSpeechThold = Float(settings.noSpeechThreshold)
-        params.initialPrompt = settings.initialPrompt.isEmpty ? nil : settings.initialPrompt
+        // Mirror the file path: when a custom dictionary is active, bias recognition by
+        // appending its replacements to the initial prompt (matches WhisperEngine).
+        let promptBoost = settings.shouldApplyCustomDictionary
+            ? CustomDictionary.promptBoost(entries: settings.customDictionaryEntries)
+            : ""
+        let combinedPrompt = [settings.initialPrompt, promptBoost]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        params.initialPrompt = combinedPrompt.isEmpty ? nil : combinedPrompt
         if settings.useBeamSearch {
             params.beamSearchBeamSize = Int32(settings.beamSize)
         }
