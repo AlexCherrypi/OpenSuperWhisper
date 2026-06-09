@@ -666,19 +666,26 @@ struct SettingsView: View {
                 }
                 .tag(2)
 
+            // Dictionary Settings
+            dictionarySettings
+                .tabItem {
+                    Label("Dictionary", systemImage: "character.book.closed")
+                }
+                .tag(3)
+
             // Storage / Retention Settings
             storageSettings
                 .tabItem {
                     Label("Storage", systemImage: "externaldrive")
                 }
-                .tag(3)
+                .tag(4)
 
             // Advanced Settings
             advancedSettings
                 .tabItem {
                     Label("Advanced", systemImage: "gear")
                 }
-                .tag(4)
+                .tag(5)
             }
         .padding()
         .frame(width: 550)
@@ -1089,50 +1096,20 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.controlBackgroundColor).opacity(0.3))
                 .cornerRadius(12)
-
-                // Custom Dictionary
-                customDictionarySection
-
-                // Transcriptions Directory
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Transcriptions Directory")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Directory:")
-                                .font(.subheadline)
-                            Spacer()
-                            Button(action: {
-                                NSWorkspace.shared.open(Recording.recordingsDirectory)
-                            }) {
-                                Label("Open Folder", systemImage: "folder")
-                                    .font(.subheadline)
-                            }
-                            .buttonStyle(.borderless)
-                            .help("Open transcriptions directory")
-                        }
-                        
-                        Text(Recording.recordingsDirectory.path)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .textSelection(.enabled)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.textBackgroundColor).opacity(0.5))
-                            .cornerRadius(6)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.controlBackgroundColor).opacity(0.3))
-                .cornerRadius(12)
             }
             .padding()
         }
     }
-    
+
+    private var dictionarySettings: some View {
+        Form {
+            VStack(spacing: 20) {
+                customDictionarySection
+            }
+            .padding()
+        }
+    }
+
     private var storageSettings: some View {
         Form {
             VStack(spacing: 20) {
@@ -1222,6 +1199,42 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Transcriptions Directory
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Transcriptions Directory")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Directory:")
+                                .font(.subheadline)
+                            Spacer()
+                            Button(action: {
+                                NSWorkspace.shared.open(Recording.recordingsDirectory)
+                            }) {
+                                Label("Open Folder", systemImage: "folder")
+                                    .font(.subheadline)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Open transcriptions directory")
+                        }
+
+                        Text(Recording.recordingsDirectory.path)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .textSelection(.enabled)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color(.textBackgroundColor).opacity(0.5))
+                            .cornerRadius(6)
+                    }
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.controlBackgroundColor).opacity(0.3))
+                .cornerRadius(12)
             }
             .padding()
         }
