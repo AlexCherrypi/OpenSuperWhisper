@@ -281,6 +281,12 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var indicatorMeterMode: String {
+        didSet {
+            AppPreferences.shared.indicatorMeterMode = indicatorMeterMode
+        }
+    }
+
     @Published var indicatorPosition: String {
         didSet {
             AppPreferences.shared.indicatorPosition = indicatorPosition
@@ -665,6 +671,7 @@ class SettingsViewModel: ObservableObject {
         self.playSoundOnRecordStart = prefs.playSoundOnRecordStart
         self.startHidden = prefs.startHidden
         self.indicatorPosition = prefs.indicatorPosition
+        self.indicatorMeterMode = prefs.indicatorMeterMode
         self.showStopButtonOnIndicator = prefs.showStopButtonOnIndicator
         self.showCancelButtonOnIndicator = prefs.showCancelButtonOnIndicator
         self.remoteFallbackEnabled = prefs.remoteFallbackEnabled
@@ -2304,7 +2311,7 @@ struct SettingsView: View {
                 case .keyCombo:
                     SRow(title: "Shortcut", hint: "Click, then press a combination with ⌘, ⌥ or ⌃ — ⌫ clears it") {
                         ShortcutRecorderField(name: .toggleRecord)
-                            .frame(width: 170)
+                            .frame(width: 132)
                     }
                 }
                 SRow(title: "Hold to record", hint: "Hold the shortcut to record, release to stop") {
@@ -2313,7 +2320,7 @@ struct SettingsView: View {
                 SRow(title: "Paste last transcription",
                      hint: "Inserts your most recent transcription again, wherever the cursor is. Unbound by default — ⌫ clears it") {
                     ShortcutRecorderField(name: .pasteLastTranscription)
-                        .frame(width: 170)
+                        .frame(width: 132)
                 }
                 SRow(title: "Cancel shortcut") {
                     Picker("", selection: $cancelKey) {
@@ -2337,29 +2344,7 @@ struct SettingsView: View {
                 }
             }
 
-            SSection(title: "Recording bar") {
-                SRow(title: "Indicator position") {
-                    HStack(spacing: 8) {
-                        Button("Preview") { IndicatorWindowManager.shared.preview() }
-                            .controlSize(.small)
-                        Picker("", selection: $viewModel.indicatorPosition) {
-                            Text("Near cursor").tag("cursor")
-                            Text("Notch").tag("notch")
-                            Text("Top").tag("top")
-                            Text("Center").tag("center")
-                            Text("Bottom").tag("bottom")
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-                }
-                SRow(title: "Show Stop button", hint: "A stop-and-transcribe button on the recording bar") {
-                    SToggle(isOn: $viewModel.showStopButtonOnIndicator)
-                }
-                SRow(title: "Show Cancel button", hint: "A discard (trash) button on the recording bar") {
-                    SToggle(isOn: $viewModel.showCancelButtonOnIndicator)
-                }
+            SSection(title: "While recording") {
                 SRow(title: "Play sound when recording starts") {
                     SToggle(isOn: $viewModel.playSoundOnRecordStart)
                 }
@@ -2426,6 +2411,10 @@ struct SettingsView: View {
                     .labelsHidden()
                     .fixedSize()
                 }
+            }
+
+            SSection(title: "Indicator") {
+                IndicatorLayoutEditor(viewModel: viewModel)
             }
         }
     }
