@@ -362,6 +362,15 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
+    @Published var latchRecordingWithSpace: Bool {
+        didSet {
+            AppPreferences.shared.latchRecordingWithSpace = latchRecordingWithSpace
+            // Same notification the trigger modes use: it makes ShortcutManager install or tear
+            // down the latch tap immediately, instead of at the next launch.
+            NotificationCenter.default.post(name: .hotkeySettingsChanged, object: nil)
+        }
+    }
+
     @Published var escCancelWithoutConfirmation: Bool {
         didSet {
             AppPreferences.shared.escCancelWithoutConfirmation = escCancelWithoutConfirmation
@@ -704,6 +713,7 @@ class SettingsViewModel: ObservableObject {
         self.modifierOnlyHotkey = ModifierKey(rawValue: prefs.modifierOnlyHotkey) ?? .none
         self.mouseButtonHotkey = MouseButton(rawValue: prefs.mouseButtonHotkey) ?? .none
         self.holdToRecord = prefs.holdToRecord
+        self.latchRecordingWithSpace = prefs.latchRecordingWithSpace
         self.escCancelWithoutConfirmation = prefs.escCancelWithoutConfirmation
         self.unloadWhisperModelWhenIdle = prefs.unloadWhisperModelWhenIdle
         self.addSpaceAfterSentence = prefs.addSpaceAfterSentence
@@ -2224,6 +2234,25 @@ struct SettingsView: View {
                                          modifierKey: $viewModel.modifierOnlyHotkey)
                         .frame(width: 168)
                 }
+                SRow(title: "Latch with Space",
+                     hint: "While recording, Space (or a double-tap of the trigger) pins it so you can let go and keep talking. Space again stops it — so Space won't type into other apps during a recording") {
+                    SToggle(isOn: $viewModel.latchRecordingWithSpace)
+                }
+                if viewModel.latchRecordingWithSpace {
+                    SWarnBox {
+                        Text("**⚠︎ Accessibility permission required.** macOS needs it to see the Space key globally. Space is only intercepted while a recording is running — at any other time it types normally, and no other keystrokes are captured.")
+                        Button("Open Accessibility Settings…") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(STheme.warn)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(STheme.warnBorder, lineWidth: 1))
+                    }
+                }
                 SRow(title: "Paste last transcription",
                      hint: "Inserts your most recent transcription again, wherever the cursor is. Unbound by default — ⌫ clears it") {
                     TriggerRecorderField(name: .pasteLastTranscription,
@@ -2260,7 +2289,8 @@ struct SettingsView: View {
             }
 
             SSection(title: "While recording") {
-                SRow(title: "Play sound when recording starts") {
+                SRow(title: "Play sound when recording starts",
+                     hint: "Also plays when a recording is latched hands-free") {
                     SToggle(isOn: $viewModel.playSoundOnRecordStart)
                 }
                 HStack(spacing: 8) {
