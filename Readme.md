@@ -158,6 +158,15 @@ Contributions are welcome — issues, focused PRs, or big ideas
 menu of features). Open items live in the
 [issue tracker](https://github.com/my-monkeys/OpenSuperWhisper/issues).
 
+## Also from My-Monkey
+
+Two other free, open-source apps from the same collective:
+
+| | |
+|---|---|
+| 🐒 **[Desktop Monkey](https://desktop-monkey.my-monkey.fr)** | A pixel-art monkey that lives on your desktop — he follows your cursor, hunts it, throws bananas at it and naps when you're away. Windows & macOS, one 6 MB file. ([source](https://github.com/my-monkeys/desktop-monkey)) |
+| 📊 **[Claude Monitor](https://github.com/my-monkeys/claude-monitor)** | A macOS menu-bar app that counts your Claude Code instances and MCP servers, watches the per-user process limit and RAM, and kills a runaway swarm before it takes the Mac down. |
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Built on [whisper.cpp](https://github.com/ggerganov/whisper.cpp),
