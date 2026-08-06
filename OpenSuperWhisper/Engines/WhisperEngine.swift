@@ -24,7 +24,14 @@ private class ProgressContext {
 class WhisperEngine: TranscriptionEngine {
     var engineName: String { "Whisper" }
     
+    /// Silero VAD, shipped in the app bundle (~0.9 MB). Used to cut non-speech audio out
+    /// before the encoder sees it: long pauses aren't decoded at all, and silence can't be
+    /// turned into invented text.
+    static let vadModelPath = Bundle(for: WhisperEngine.self)
+        .path(forResource: "ggml-silero-v5.1.2", ofType: "bin")
+
     private var context: MyWhisperContext?
+    private var vadContext: MyWhisperVadContext?
     private let stateLock = NSLock()
     private var _isCancelled = false
     private var _abortFlag: UnsafeMutablePointer<Bool>?
@@ -131,15 +138,29 @@ class WhisperEngine: TranscriptionEngine {
         // Notify conversion start (0-10% is conversion phase)
         onProgressUpdate?(0.05)
         
-        guard let samples = try await convertAudioToPCM(fileURL: url) else {
+        guard let converted = try await convertAudioToPCM(fileURL: url) else {
             throw TranscriptionError.audioConversionFailed
         }
-        
+
         // Conversion done, now processing
         onProgressUpdate?(0.10)
-        
+
         try Task.checkCancellation()
-        
+
+        // The VAD only ever *trims*: if it finds nothing, or can't run at all, the full clip
+        // goes to whisper unchanged. Dropping a quiet sentence the VAD failed to hear costs
+        // the user their words, while the silence it protects against is already handled by
+        // suppressBlank and noSpeechThold. Timestamps are the exception: trimming shifts them
+        // off the original file, so it's skipped when the user asked to see them.
+        let samples: [Float]
+        if settings.showTimestamps {
+            samples = converted
+        } else {
+            let trimmed = Self.speechOnlySamples(
+                from: converted, segments: detectSpeech(in: converted))
+            samples = trimmed.isEmpty ? converted : trimmed
+        }
+
         let nThreads = max(2, min(ProcessInfo.processInfo.activeProcessorCount, 8))
         
         var params = WhisperFullParams()
@@ -160,7 +181,10 @@ class WhisperEngine: TranscriptionEngine {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
         params.initialPrompt = combinedPrompt.isEmpty ? nil : combinedPrompt
-        
+        // Otherwise the prompt only conditions the first 30s window, so a custom dictionary
+        // stops being applied partway through a long dictation.
+        params.carryInitialPrompt = !combinedPrompt.isEmpty
+
         typealias GGMLAbortCallback = @convention(c) (UnsafeMutableRawPointer?) -> Bool
         let abortCallback: GGMLAbortCallback = { userData in
             guard let userData = userData else { return false }
@@ -256,7 +280,56 @@ class WhisperEngine: TranscriptionEngine {
     func getSupportedLanguages() -> [String] {
         return LanguageUtil.availableLanguages
     }
-    
+
+    // MARK: - VAD
+
+    /// Speech regions in `samples`, or an empty array when the VAD is unavailable or found
+    /// nothing. Deliberately non-throwing: a missing bundle resource or a failed context must
+    /// degrade to transcribing the whole clip, not take the main engine down with it.
+    private func detectSpeech(in samples: [Float]) -> [WhisperVadSegment] {
+        if vadContext == nil {
+            guard let path = Self.vadModelPath,
+                  let vad = MyWhisperVadContext(modelPath: path) else {
+                return []
+            }
+            vadContext = vad
+        }
+        // whisper.cpp discards speech shorter than 250ms, which is about the length of "yes"
+        // or "non" — fine when transcribing an hour of audio, wrong when someone is dictating
+        // one. The wider padding likewise protects word onsets, since Whisper mistranscribes a
+        // word whose first consonant got clipped. Both trade a little kept silence for words.
+        return vadContext?.speechSegments(in: samples, minSpeechMs: 100, padMs: 100) ?? []
+    }
+
+    /// Stitches the speech regions back into one buffer, mirroring what whisper.cpp does
+    /// internally: each segment carries 0.1s of the audio that follows it, and segments are
+    /// joined by 0.1s of silence so the decoder still hears a pause between phrases.
+    static func speechOnlySamples(from samples: [Float], segments: [WhisperVadSegment]) -> [Float] {
+        let sampleRate = 16000
+        let overlap = sampleRate / 10
+        let gap = [Float](repeating: 0, count: overlap)
+
+        var result: [Float] = []
+        result.reserveCapacity(samples.count)
+
+        for (index, segment) in segments.enumerated() {
+            // Checked on the segment, not on the padded range: the overlap below would
+            // otherwise turn an empty segment into 0.1s of spurious audio.
+            guard segment.endCs > segment.startCs else { continue }
+
+            let start = max(0, Int(segment.startCs) * sampleRate / 100)
+            let end = min(samples.count, Int(segment.endCs) * sampleRate / 100 + overlap)
+            guard start < end else { continue }
+
+            if index > 0 && !result.isEmpty {
+                result.append(contentsOf: gap)
+            }
+            result.append(contentsOf: samples[start..<end])
+        }
+
+        return result
+    }
+
     private nonisolated func resolveFileURL(_ fileURL: URL) throws -> (URL, Bool) {
         let data = try Data(contentsOf: fileURL, options: [.mappedIfSafe])
         guard data.count >= 12 else { return (fileURL, false) }

@@ -13,6 +13,65 @@ public typealias WhisperPos = Int32
 public typealias WhisperToken = Int32
 public typealias WhisperSeqId = Int32
 
+// MARK: - VAD (Silero)
+
+/// A stretch of speech found by the VAD, in centiseconds of the original audio.
+public struct WhisperVadSegment: Equatable {
+    public let startCs: Int64
+    public let endCs: Int64
+
+    public init(startCs: Int64, endCs: Int64) {
+        self.startCs = startCs
+        self.endCs = endCs
+    }
+}
+
+public class MyWhisperVadContext {
+    private var vctx: OpaquePointer?
+
+    public init?(modelPath: String) {
+        let params = whisper_vad_default_context_params()
+        vctx = modelPath.withCString { whisper_vad_init_from_file_with_params($0, params) }
+        guard vctx != nil else { return nil }
+    }
+
+    deinit {
+        if let vctx = vctx {
+            whisper_vad_free(vctx)
+        }
+    }
+
+    /// `minSpeechMs` and `padMs` default to whisper.cpp's own values, which are tuned for
+    /// transcribing long recordings. Callers doing dictation should widen them: there, a
+    /// dropped word costs more than a kept moment of silence.
+    public func speechSegments(
+        in samples: [Float], minSpeechMs: Int32? = nil, padMs: Int32? = nil
+    ) -> [WhisperVadSegment]? {
+        guard let vctx = vctx else { return nil }
+
+        var params = whisper_vad_default_params()
+        if let minSpeechMs = minSpeechMs { params.min_speech_duration_ms = minSpeechMs }
+        if let padMs = padMs { params.speech_pad_ms = padMs }
+
+        let segmentsPtr = samples.withUnsafeBufferPointer { buffer in
+            whisper_vad_segments_from_samples(
+                vctx, params, buffer.baseAddress, Int32(buffer.count))
+        }
+        guard let segmentsPtr = segmentsPtr else { return nil }
+        defer { whisper_vad_free_segments(segmentsPtr) }
+
+        let count = Int(whisper_vad_segments_n_segments(segmentsPtr))
+        var result: [WhisperVadSegment] = []
+        result.reserveCapacity(count)
+        for i in 0..<count {
+            result.append(WhisperVadSegment(
+                startCs: Int64(whisper_vad_segments_get_segment_t0(segmentsPtr, Int32(i))),
+                endCs: Int64(whisper_vad_segments_get_segment_t1(segmentsPtr, Int32(i)))))
+        }
+        return result
+    }
+}
+
 // MARK: - Wrapper Class
 
 public class MyWhisperContext {
