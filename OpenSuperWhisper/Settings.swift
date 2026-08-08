@@ -2447,11 +2447,15 @@ struct OnboardingUnifiedModel: Identifiable {
 }
 
 struct OnboardingUnifiedModels {
+    /// The three Whisper rows are the *same* model at three compression levels, not three model
+    /// sizes. They were labelled "Large", "Medium" and "Small", which reads as an accuracy
+    /// ladder and is not one: all three are large-v3-turbo, and someone who picked "Medium"
+    /// expecting the medium model got a compressed large instead.
     static let availableModels = [
         OnboardingUnifiedModel(
-            name: "Whisper V3 Large",
+            name: "Whisper Large v3 Turbo",
             isDownloaded: false,
-            description: "High accuracy, best quality",
+            description: "Best accuracy, 1.6 GB",
             type: .whisper(
                 url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin?download=true")!,
                 size: 1624
@@ -2470,18 +2474,18 @@ struct OnboardingUnifiedModels {
             type: .parakeet(version: "v2")
         ),
         OnboardingUnifiedModel(
-            name: "Whisper Medium",
+            name: "Whisper Large v3 Turbo (compressed)",
             isDownloaded: false,
-            description: "Balanced speed and accuracy",
+            description: "Nearly the same accuracy, 874 MB",
             type: .whisper(
                 url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true")!,
                 size: 874
             )
         ),
         OnboardingUnifiedModel(
-            name: "Whisper Small",
+            name: "Whisper Large v3 Turbo (smallest)",
             isDownloaded: false,
-            description: "Very fast processing",
+            description: "Most compressed, 574 MB",
             type: .whisper(
                 url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true")!,
                 size: 574

@@ -57,6 +57,17 @@ extension EnvironmentValues {
         get { self[TextScaleKey.self] }
         set { self[TextScaleKey.self] = newValue }
     }
+
+    /// The factor `scaledFont` applies, for views whose size is set by geometry rather than by
+    /// text.
+    ///
+    /// The recording bubble is almost entirely graphics: a dot, a spectrum, two optional
+    /// buttons. Scaling only its fonts moved the one small "Recording…" label and left the
+    /// window the size it shipped at, so raising the setting appeared to do nothing at all
+    /// (reported on a 14" screen). Dimensions multiplied by this grow with the text.
+    var textScaleFactor: Double {
+        TextScale.clamped(appTextScale) * TextScale.systemMultiplier(dynamicTypeSize)
+    }
 }
 
 private struct ScaledFont: ViewModifier {

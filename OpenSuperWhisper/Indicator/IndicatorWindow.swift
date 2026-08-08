@@ -332,6 +332,8 @@ struct RecordingIndicator: View {
     /// safe to let go of the trigger key.
     var isLatched: Bool = false
 
+    @Environment(\.textScaleFactor) private var scale
+
     var body: some View {
         Circle()
             .fill(
@@ -344,7 +346,7 @@ struct RecordingIndicator: View {
                     endPoint: .bottomTrailing
                 )
             )
-            .frame(width: isLatched ? 11 : 8, height: isLatched ? 11 : 8)
+            .frame(width: (isLatched ? 11 : 8) * scale, height: (isLatched ? 11 : 8) * scale)
             .shadow(color: .red.opacity(0.5), radius: isLatched ? 6 : 4)
             // Latched reads as steady-and-pulsing rather than blinking: a solid dot says the
             // recording no longer depends on anything being held down.
@@ -433,6 +435,9 @@ struct IndicatorWindow: View {
     @ObservedObject private var pipeline = DictationPipeline.shared
     @ObservedObject private var spectrum = SpectrumAnalyzer.shared
     @Environment(\.colorScheme) private var colorScheme
+    /// Padding and minimum sizes follow the text setting, or the bubble keeps its shipped size
+    /// however large the text is set. Notch mode is excluded: its geometry is the hardware's.
+    @Environment(\.textScaleFactor) private var scale
     
     private var backgroundColor: Color {
         colorScheme == .dark
@@ -644,13 +649,13 @@ struct IndicatorWindow: View {
         // Spacer eats it, so a waveform plus two buttons stretched into a mostly empty bar.
         // Fixing the horizontal size collapses the Spacer to its 8pt minimum.
         .fixedSize(horizontal: bubbleWidth == nil, vertical: false)
-        .padding(.horizontal, isNotchMode ? 22 : 16)
-        .padding(.vertical, isNotchMode ? 10 : 7)
+        .padding(.horizontal, isNotchMode ? 22 : 16 * scale)
+        .padding(.vertical, isNotchMode ? 10 : 7 * scale)
         // Width must be set *before* the background so the bubble itself fills it (not just the
         // surrounding frame). Notch content is centred; the others stay leading.
-        .frame(minHeight: isNotchMode ? notch.height : 36)
+        .frame(minHeight: isNotchMode ? notch.height : 36 * scale)
         // A floor so a single small element still reads as a bubble rather than a chip.
-        .frame(minWidth: bubbleWidth == nil ? 76 : nil)
+        .frame(minWidth: bubbleWidth == nil ? 76 * scale : nil)
         .frame(width: bubbleWidth, alignment: isNotchMode ? .center : .leading)
         .background {
             if isNotchMode {

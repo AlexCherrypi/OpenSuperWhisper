@@ -19,15 +19,10 @@ enum PasteLastTranscript {
 
     /// The newest transcription worth pasting, or `nil` when there isn't one yet.
     ///
-    /// Skips clips that failed (their `transcription` holds the retry placeholder), clips still
-    /// being transcribed (partial or empty text), and ones that produced nothing. Ordering is
-    /// computed here rather than trusted from the caller, so a change in how the store sorts
-    /// can't silently start pasting an old transcription.
+    /// What counts as worth pasting lives in [RecentTranscripts], so this and the status bar's
+    /// "Recent" submenu can't drift into disagreeing about which clips are usable.
     static func pick(from recordings: [Recording]) -> String? {
-        recordings
-            .filter { $0.status == .completed && !$0.transcription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .max { $0.timestamp < $1.timestamp }?
-            .transcription
+        RecentTranscripts.pick(from: recordings, limit: 1).first?.transcription
     }
 
     /// Handles one press of the shortcut: find the last transcription and insert it.
@@ -47,10 +42,17 @@ enum PasteLastTranscript {
             return
         }
 
+        await insert(text)
+    }
+
+    /// Puts a chosen transcription where the caret is. Shared with the status bar's "Recent"
+    /// submenu, which reaches the same text by a different route.
+    @MainActor
+    static func insert(_ text: String) async {
         await waitForModifiersToClear()
 
-        // `honorAutoPastePreference: false` — pressing the shortcut *is* the request to insert, so
-        // a user who dictates to the clipboard only still gets text where the cursor is.
+        // `honorAutoPastePreference: false` — asking for this insertion *is* the request, so a
+        // user who dictates to the clipboard only still gets text where the cursor is.
         let targetMissing = TranscriptInserter.insert(IndicatorViewModel.applyPostProcessing(text),
                                                       honorAutoPastePreference: false)
         if targetMissing {

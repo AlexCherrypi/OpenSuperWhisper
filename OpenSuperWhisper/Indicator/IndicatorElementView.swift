@@ -14,13 +14,17 @@ struct IndicatorElementView: View {
     /// The editor's preview has no manager to call, so its buttons do nothing.
     var isInteractive = true
 
+    /// The bubble is mostly graphics, so its dimensions follow the text setting too — otherwise
+    /// raising it moves the one small label and nothing else.
+    @Environment(\.textScaleFactor) private var scale
+
     var body: some View {
         switch element {
         case .dot:
             RecordingIndicator(isBlinking: isBlinking, isLatched: isLatched)
-                .frame(width: 16)
+                .frame(width: 16 * scale)
         case .waveform:
-            InputLevelMeter(bands: bands, height: meterHeight)
+            InputLevelMeter(bands: bands, height: meterHeight * scale)
         case .label:
             Text(queued > 0 ? "Recording… · \(queued) queued" : "Recording…")
                 .scaledFont(size: 13, weight: .semibold)
@@ -47,7 +51,7 @@ struct IndicatorElementView: View {
             Image(systemName: symbol)
                 .scaledFont(size: size, weight: .regular)
                 .foregroundColor(.red)
-                .frame(width: 24, height: 24)
+                .frame(width: 24 * scale, height: 24 * scale)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

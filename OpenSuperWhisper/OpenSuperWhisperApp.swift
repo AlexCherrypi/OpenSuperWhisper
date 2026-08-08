@@ -109,6 +109,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     private var mainWindow: NSWindow?
     private var languageSubmenu: NSMenu?
     private var modelSubmenu: NSMenu?
+    private var recentSubmenu: NSMenu?
+
+    /// Rows for the "Recent" submenu, kept current by `recordingsDidUpdateNotification` rather
+    /// than fetched when the menu opens: reading the store is async, and `menuNeedsUpdate` is
+    /// not, so an open menu can't wait for it.
+    private var recentTranscripts: [Recording] = []
     private var microphoneService = MicrophoneService.shared
     private var microphoneObserver: AnyCancellable?
     
@@ -211,8 +217,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         }
         
         updateStatusBarMenu()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(refreshRecentTranscripts),
+            name: RecordingStore.recordingsDidUpdateNotification,
+            object: nil)
+        refreshRecentTranscripts()
     }
-    
+
     private func updateStatusBarMenu() {
         let menu = NSMenu()
         
@@ -274,7 +287,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         )
         
         menu.addItem(NSMenuItem.separator())
-        
+
+        // Reaching an earlier dictation otherwise means opening the main window and copying out
+        // of the history list. Rebuilt on open like the model submenu, from a cache the store's
+        // change notification keeps current.
+        let recentItem = NSMenuItem(title: NSLocalizedString("Recent", comment: ""), action: nil, keyEquivalent: "")
+        let recentMenu = NSMenu()
+        recentMenu.delegate = self
+        recentSubmenu = recentMenu
+        populateRecentSubmenu()
+        recentItem.submenu = recentMenu
+        menu.addItem(recentItem)
+
         let microphoneMenu = NSMenuItem(title: NSLocalizedString("Microphone", comment: ""), action: nil, keyEquivalent: "")
         let submenu = NSMenu()
         
@@ -381,6 +405,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
     func menuNeedsUpdate(_ menu: NSMenu) {
         if menu === modelSubmenu {
             populateModelSubmenu()
+        }
+        if menu === recentSubmenu {
+            populateRecentSubmenu()
+        }
+    }
+
+    private func populateRecentSubmenu() {
+        guard let submenu = recentSubmenu else { return }
+        submenu.removeAllItems()
+
+        guard !recentTranscripts.isEmpty else {
+            let empty = NSMenuItem(title: NSLocalizedString("No transcriptions yet", comment: ""),
+                                   action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            submenu.addItem(empty)
+            return
+        }
+
+        for recording in recentTranscripts {
+            let item = NSMenuItem(title: RecentTranscripts.menuTitle(for: recording.transcription),
+                                  action: #selector(insertRecentTranscript(_:)),
+                                  keyEquivalent: "")
+            item.target = self
+            item.representedObject = recording.transcription
+            // The truncated title loses the end of a long dictation; the tooltip keeps it, so
+            // picking between two that start alike doesn't need the main window.
+            item.toolTip = recording.transcription
+            submenu.addItem(item)
+        }
+    }
+
+    @objc private func insertRecentTranscript(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String else { return }
+        Task { @MainActor in
+            await PasteLastTranscript.insert(text)
+        }
+    }
+
+    /// Refreshes the cache behind the "Recent" submenu. Cheap (one indexed read) and only runs
+    /// when the stored recordings actually changed.
+    @objc private func refreshRecentTranscripts() {
+        Task { @MainActor in
+            guard let recordings = try? await RecordingStore.shared.fetchRecordings(
+                limit: RecentTranscripts.scanDepth, offset: 0) else { return }
+
+            recentTranscripts = RecentTranscripts.pick(from: recordings,
+                                                       limit: RecentTranscripts.menuCount)
+            populateRecentSubmenu()
         }
     }
 

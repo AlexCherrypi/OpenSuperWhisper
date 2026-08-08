@@ -1,12 +1,45 @@
 import Foundation
 class LanguageUtil {
 
-    static let availableLanguages = [
-        "auto", "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar",
-        "he", "sv", "it", "id", "hi", "fi", "vi",
-    ]
+    /// Every language the bundled Whisper build can transcribe, read from the library instead of
+    /// hand-listed.
+    ///
+    /// The hand-written list held 22 of Whisper's 99 languages, and the missing ones only ever
+    /// surfaced as user reports: Ukrainian, then Vietnamese (#74), then Czech. Each was a
+    /// language Whisper had handled all along that nobody could select. Reading the table the
+    /// transcriber actually uses ends that class of bug rather than its latest instance.
+    static let availableLanguages: [String] = {
+        ["auto"] + whisperCodes.sorted { displayName(for: $0) < displayName(for: $1) }
+    }()
 
-    static let languageNames = [
+    static let languageNames: [String: String] = {
+        var names = curatedNames
+        for code in whisperCodes {
+            names[code] = displayName(for: code)
+        }
+        return names
+    }()
+
+    /// Whisper's own names are lowercase and occasionally terse, so ours win where we have one.
+    static func displayName(for code: String) -> String {
+        curatedNames[code] ?? whisperName(for: code) ?? code
+    }
+
+    private static let whisperCodes: [String] = {
+        let maxId = Int(whisper_lang_max_id())
+        guard maxId >= 0 else { return [] }
+        return (0...maxId).compactMap { id in
+            whisper_lang_str(Int32(id)).map { String(cString: $0) }
+        }
+    }()
+
+    private static func whisperName(for code: String) -> String? {
+        let id = whisper_lang_id(code)
+        guard id >= 0, let full = whisper_lang_str_full(id) else { return nil }
+        return String(cString: full).capitalized
+    }
+
+    private static let curatedNames = [
         "auto": "Auto-detect",
         "en": "English",
         "zh": "Chinese",
