@@ -184,7 +184,9 @@ class SettingsViewModel: ObservableObject {
     /// "Translate to English" toggle is disabled — Parakeet/SenseVoice ignore the flag, so
     /// showing an active toggle is misleading.
     var canTranslate: Bool {
-        EngineCapabilities.supportsTranslation(engine: selectedEngine)
+        EngineCapabilities.supportsTranslation(
+            engine: selectedEngine,
+            modelPath: AppPreferences.shared.selectedWhisperModelPath)
     }
 
     /// Languages the selected engine+model can transcribe — filters the language picker (#155).
@@ -1855,7 +1857,9 @@ struct SettingsView: View {
                 }
                 SRow(title: "Translate to English",
                      hint: !viewModel.canTranslate
-                        ? "Only Whisper and remote servers translate; the current engine ignores this."
+                        ? (viewModel.selectedEngine == "whisper"
+                            ? "Turbo models don't translate, whatever their documentation says. Pick a non-turbo Whisper model to translate."
+                            : "Only Whisper and remote servers translate; the current engine ignores this.")
                         : (viewModel.translateToEnglish && viewModel.selectedEngine == "remote"
                             ? "We can't confirm this remote model supports translation"
                             : nil),
@@ -2435,6 +2439,7 @@ struct SettingsFluidAudioModels {
 enum OnboardingModelType {
     case whisper(url: URL, size: Int)
     case parakeet(version: String)
+    case senseVoice
 }
 
 struct OnboardingUnifiedModel: Identifiable {
@@ -2490,8 +2495,26 @@ struct OnboardingUnifiedModels {
                 url: URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin?download=true")!,
                 size: 574
             )
-        )
+        ),
     ]
+        // Apple Silicon only: the engine is behind `#if arch(arm64)` because its runtime
+        // (onnxruntime) ships no Intel build, so offering it there would download 239 MB for
+        // something that cannot run. Missing from this screen entirely was worse: the site
+        // advertises SenseVoice, and setup implied it did not exist (#83).
+        + senseVoiceModel
+
+    private static var senseVoiceModel: [OnboardingUnifiedModel] {
+        #if arch(arm64)
+        [OnboardingUnifiedModel(
+            name: "SenseVoice",
+            isDownloaded: false,
+            description: "Compact and quick. Chinese, English, Japanese, Korean, Cantonese",
+            type: .senseVoice
+        )]
+        #else
+        []
+        #endif
+    }
 }
 
 struct FluidAudioModelDownloadItemView: View {
