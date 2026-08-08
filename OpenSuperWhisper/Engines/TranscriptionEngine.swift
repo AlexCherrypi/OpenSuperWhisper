@@ -25,6 +25,23 @@ enum EngineCapabilities {
         translationCapableEngines.contains(engine)
     }
 
+    /// Whisper can translate, but the turbo models cannot, whatever their documentation says.
+    ///
+    /// Measured on the same Czech clip: `ggml-small` returns English with `translate` set, while
+    /// `ggml-large-v3-turbo-q5_0` returns the Czech unchanged, byte for byte identical to the
+    /// untranslated run. Every Whisper model the setup screen offers is a turbo build, so a user
+    /// who followed setup had no reachable configuration that could translate, and the toggle
+    /// stayed enabled while doing nothing. Reported by a Czech user on 0.10.2.
+    static func supportsTranslation(engine: String, modelPath: String?) -> Bool {
+        guard supportsTranslation(engine: engine) else { return false }
+        guard engine == "whisper", let modelPath else { return true }
+        return !isTurboModel(modelPath)
+    }
+
+    static func isTurboModel(_ modelPath: String) -> Bool {
+        (modelPath as NSString).lastPathComponent.lowercased().contains("turbo")
+    }
+
     /// The language codes an engine+model can transcribe, in display order. The single source of
     /// truth for both the engines' `getSupportedLanguages()` and the language picker, so the UI can
     /// filter without instantiating an engine and the two can't drift (#155). Whisper uses the full

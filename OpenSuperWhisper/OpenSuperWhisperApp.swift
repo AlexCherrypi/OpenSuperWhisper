@@ -256,11 +256,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         // transcribe in the source language (#124). Off those, gray the item out and say why
         // instead of silently ignoring it.
         let engine = AppPreferences.shared.selectedEngine
-        let translateSupported = EngineCapabilities.supportsTranslation(engine: engine)
+        let translateSupported = EngineCapabilities.supportsTranslation(
+            engine: engine, modelPath: AppPreferences.shared.selectedWhisperModelPath)
+        let turboBlocks = engine == "whisper" && !translateSupported
         let translateItem = NSMenuItem(
             title: translateSupported
                 ? NSLocalizedString("Translate to English", comment: "")
-                : NSLocalizedString("Translate to English (Whisper only)", comment: ""),
+                : turboBlocks
+                    ? NSLocalizedString("Translate to English (not with turbo models)", comment: "")
+                    : NSLocalizedString("Translate to English (Whisper only)", comment: ""),
             action: translateSupported ? #selector(toggleTranslateToEnglish) : nil,
             keyEquivalent: "")
         translateItem.target = self
