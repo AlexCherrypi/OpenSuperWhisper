@@ -218,6 +218,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         
         updateStatusBarMenu()
 
+        // Registered here rather than in updateStatusBarMenu: that runs again on every language
+        // or model change, so observers added there piled up one per rebuild.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(languagePreferenceChanged),
+            name: .appPreferencesLanguageChanged,
+            object: nil)
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(refreshRecentTranscripts),
@@ -282,14 +289,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, ObservableOb
         modelMenuItem.submenu = modelMenu
         menu.addItem(modelMenuItem)
 
-        // Listen for language preference changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(languagePreferenceChanged),
-            name: .appPreferencesLanguageChanged,
-            object: nil
-        )
-        
         menu.addItem(NSMenuItem.separator())
 
         // Reaching an earlier dictation otherwise means opening the main window and copying out
