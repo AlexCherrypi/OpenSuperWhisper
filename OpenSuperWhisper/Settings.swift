@@ -1146,6 +1146,32 @@ struct SettingsDownloadableModels {
 
 struct Settings {
     static let asianLanguages: Set<String> = ["zh", "ja", "ko"]
+
+    /// A prompt kept in a file wins over the one typed in Settings.
+    ///
+    /// Whisper copies the style of whatever it is primed with, so anyone writing to a house
+    /// style wants a sample of their own prose here: punctuation, dialogue, names. That belongs
+    /// in a file next to their work and under version control, not retyped into a text field on
+    /// every machine. Read fresh each time, so editing it takes effect on the next dictation.
+    static let promptFileURL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent(".config/opensuperwhisper/prompt.md")
+
+    /// Whisper keeps only its last ~224 tokens of prompt anyway, and this is read on the
+    /// dictation path, so a file pointed at something enormous is truncated rather than read
+    /// whole.
+    static let promptFileByteLimit = 16 * 1024
+
+    static func promptFileContents(at url: URL = promptFileURL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+
+        guard let data = try? handle.read(upToCount: promptFileByteLimit),
+              let text = String(data: data, encoding: .utf8)
+        else { return nil }
+
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
     
     var selectedLanguage: String
     var translateToEnglish: Bool
@@ -1187,7 +1213,7 @@ struct Settings {
         self.showTimestamps = prefs.showTimestamps
         self.temperature = prefs.temperature
         self.noSpeechThreshold = prefs.noSpeechThreshold
-        self.initialPrompt = prefs.initialPrompt
+        self.initialPrompt = Settings.promptFileContents() ?? prefs.initialPrompt
         self.useBeamSearch = prefs.useBeamSearch
         self.beamSize = prefs.beamSize
         self.useAsianAutocorrect = prefs.useAsianAutocorrect
@@ -1874,7 +1900,8 @@ struct SettingsView: View {
             }
 
             SSection(title: "Guidance") {
-                SRow(title: "Initial prompt", hint: "Optional text to guide the model's transcription") { EmptyView() }
+                SRow(title: "Initial prompt",
+                     hint: "Optional text to guide the model's transcription. Whisper copies its style, so a few lines of your own writing teach it your punctuation. A file at ~/.config/opensuperwhisper/prompt.md is used instead of this box when it exists.") { EmptyView() }
                 sEditor($viewModel.initialPrompt, height: 48)
             }
 
