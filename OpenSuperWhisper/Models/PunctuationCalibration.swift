@@ -43,30 +43,42 @@ enum PunctuationCalibration {
         Sentence(id: "en-1", language: "en",
                  text: "He said \"hello\" and walked away."),
         Sentence(id: "en-2", language: "en",
-                 text: "She turned around: the door was open, and nobody was there."),
+                 text: "She had one rule: nobody waits."),
         Sentence(id: "en-3", language: "en",
-                 text: "Are you coming? She waited - he never came."),
+                 text: "The sign read \"closed\" all afternoon."),
         Sentence(id: "en-4", language: "en",
-                 text: "There were three of them; only one spoke."),
+                 text: "He was late; nobody minded."),
     ]
 
     static let french: [Sentence] = [
         Sentence(id: "fr-1", language: "fr",
                  text: "Il a dit « bonjour » puis il est parti."),
         Sentence(id: "fr-2", language: "fr",
-                 text: "Elle s'est retournée, la porte était ouverte, et personne n'était là."),
+                 text: "Elle n'a donné qu'une consigne : personne n'attend."),
         Sentence(id: "fr-3", language: "fr",
-                 text: "Elle a répondu : oui ; il n'a rien ajouté."),
+                 text: "Le panneau indiquait « fermé » tout l'après-midi."),
         Sentence(id: "fr-4", language: "fr",
-                 text: "Tu viens ? Elle attend - il ne vient pas."),
+                 text: "Il était en retard ; personne n'a rien dit."),
     ]
 
     // MARK: - Deriving rules
 
-    /// Marks worth learning. Anything else in the target is treated as an ordinary character, so
-    /// a stray apostrophe in "n'était" never becomes a rule.
-    static let learnableMarks: Set<Character> = [
-        ",", ".", ":", ";", "?", "!", "\"", "«", "»", "-", "—", "…",
+    /// Marks we make rules for.
+    ///
+    /// Deliberately not the comma or the full stop. The model writes those by itself most of the
+    /// time, so a rule turning a spoken "virgule" into a comma lands beside one that is already
+    /// there and gives `oui, ,`. Knowing whether a mark is wanted or already present takes more
+    /// than a find and replace, and until that exists these are the marks the model does not
+    /// insert on its own: nobody gets a semicolon they did not ask for.
+    static let learnableMarks: Set<Character> = [":", ";", "«", "»", "\""]
+
+    /// Everything treated as punctuation when splitting words apart, learnable or not.
+    ///
+    /// The target sentences end in a full stop and the transcripts will too. Both have to come
+    /// off before the words can be lined up, whether or not a rule comes out of it: otherwise
+    /// "parti." never matches "parti" and the alignment drifts from there on.
+    static let punctuation: Set<Character> = [
+        ",", ".", ":", ";", "?", "!", "\"", "«", "»", "—", "…",
     ]
 
     /// Compares a sentence we asked for with what came back, and reports what stood in for each
@@ -98,13 +110,16 @@ enum PunctuationCalibration {
             // open quote" for both. Skipping beats guessing: a wrong rule is then applied to
             // everything the user dictates afterwards. The sentences we ship keep marks apart
             // so this stays rare.
-            var run: [(mark: String, spacing: CustomDictionaryEntry.Spacing)] = []
-            while index < target.count, case .mark(let mark, let spacing) = target[index] {
-                run.append((mark, spacing))
+            var run: [(mark: String, spacing: CustomDictionaryEntry.Spacing, learnable: Bool)] = []
+            while index < target.count, case .mark(let mark, let spacing, let learnable) = target[index] {
+                run.append((mark, spacing, learnable))
                 index += 1
             }
 
-            guard run.count == 1 else { continue }
+            // A run of one, and one we actually teach. The full stop closing every sentence is
+            // parsed so the words line up, then dropped here: whatever the reader said in its
+            // place is theirs to keep, not a rule we want to write.
+            guard run.count == 1, run[0].learnable else { continue }
 
             // The words said here sit between the target word before the mark and the one
             // after, wherever those landed in the transcript.
@@ -162,7 +177,9 @@ enum PunctuationCalibration {
 
     private enum Item {
         case word(String)
-        case mark(String, CustomDictionaryEntry.Spacing)
+        /// `learnable` is false for the marks we split words on but do not teach, such as the
+        /// full stop ending every sentence.
+        case mark(String, CustomDictionaryEntry.Spacing, learnable: Bool)
     }
 
     /// Splits the target into words and marks, reading each mark's spacing off the sentence.
@@ -183,7 +200,7 @@ enum PunctuationCalibration {
                 flush()
                 continue
             }
-            guard learnableMarks.contains(character) else {
+            guard punctuation.contains(character) else {
                 current.append(character)
                 continue
             }
@@ -200,7 +217,9 @@ enum PunctuationCalibration {
             flush()
             let spaceBefore = index == 0 || characters[index - 1].isWhitespace
             let spaceAfter = index + 1 >= characters.count || characters[index + 1].isWhitespace
-            items.append(.mark(String(character), spacing(before: spaceBefore, after: spaceAfter)))
+            items.append(.mark(String(character),
+                               spacing(before: spaceBefore, after: spaceAfter),
+                               learnable: learnableMarks.contains(character)))
         }
         flush()
 
@@ -225,7 +244,7 @@ enum PunctuationCalibration {
         text.split(whereSeparator: { $0.isWhitespace })
             .map { token in
                 String(token.unicodeScalars.filter {
-                    !learnableMarks.contains(Character($0)) || Character($0) == "-"
+                    !punctuation.contains(Character($0)) || Character($0) == "-"
                 })
             }
             .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "-")) }

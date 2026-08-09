@@ -15,33 +15,42 @@ final class PunctuationCalibrationTests: XCTestCase {
 
     // MARK: - English
 
-    func testLearnsQuotesAndFullStop() {
+    func testLearnsQuotes() {
         let rules = derive("He said \"hello\" and walked away.",
                            "He said open quote hello close quote and walked away period")
 
         XCTAssertEqual(rules.filter { $0.mark == "\"" }.map(\.spoken),
                        ["open quote", "close quote"])
-        XCTAssertEqual(rules.first(where: { $0.mark == "." })?.spoken, "period")
+    }
+
+    /// The full stop closing every sentence is parsed so the words line up, then dropped. The
+    /// model writes commas and stops by itself, so a rule for them would land beside one that is
+    /// already there.
+    func testFullStopAndCommaAreNotTaught() {
+        let rules = derive("He said \"hello\" and walked away.",
+                           "He said open quote hello close quote and walked away period")
+
+        XCTAssertFalse(rules.contains { $0.mark == "." })
+        XCTAssertFalse(rules.contains { $0.spoken == "period" })
     }
 
     /// An opening mark glues to what follows and a closing one to what precedes, read off the
     /// target sentence rather than guessed.
     func testSpacingComesFromTheTargetSentence() {
-        let rules = derive("He said \"hello\" and left, quietly.",
-                           "He said open quote hello close quote and left comma quietly")
+        let rules = derive("He said \"hello\" and left quietly.",
+                           "He said open quote hello close quote and left quietly")
 
         XCTAssertEqual(rules.first(where: { $0.spoken == "open quote" })?.spacing, .attachesRight)
         XCTAssertEqual(rules.first(where: { $0.spoken == "close quote" })?.spacing, .attachesLeft)
-        XCTAssertEqual(rules.first(where: { $0.spoken == "comma" })?.spacing, .attachesLeft)
     }
 
     /// Two marks with no word between them share one stretch of transcript. Guessing which
     /// words belong to which would plant a rule that then rewrites everything the user dictates.
     func testAdjacentMarksTeachNothingRatherThanGuessing() {
-        let rules = derive("He said, \"hello.\"",
-                           "He said comma open quote hello period close quote")
+        let rules = derive("He said: \"hello\" today",
+                           "He said colon open quote hello close quote today")
 
-        XCTAssertFalse(rules.contains { $0.spoken.contains("comma open") },
+        XCTAssertFalse(rules.contains { $0.spoken.contains("colon open") },
                        "a run of marks must not be attributed to the first one")
     }
 
@@ -53,7 +62,6 @@ final class PunctuationCalibrationTests: XCTestCase {
 
         XCTAssertEqual(rules.first(where: { $0.mark == "«" })?.spoken, "ouvrez les guillemets")
         XCTAssertEqual(rules.first(where: { $0.mark == "»" })?.spoken, "fermez les guillemets")
-        XCTAssertEqual(rules.first(where: { $0.mark == "." })?.spoken, "point")
     }
 
     func testLearnsFrenchColonAndSemicolon() {
@@ -75,10 +83,10 @@ final class PunctuationCalibrationTests: XCTestCase {
 
     /// Accents and capitals differ between the target and the transcript constantly.
     func testMatchingIgnoresAccentsAndCase() {
-        let rules = derive("Elle s'est retournée, la porte était ouverte.",
-                           "elle s'est retournee virgule la porte etait ouverte point")
+        let rules = derive("Elle s'est retournée : la porte était ouverte.",
+                           "elle s'est retournee deux points la porte etait ouverte point")
 
-        XCTAssertEqual(rules.first(where: { $0.mark == "," })?.spoken, "virgule")
+        XCTAssertEqual(rules.first(where: { $0.mark == ":" })?.spoken, "deux points")
     }
 
     // MARK: - Saying nothing
@@ -86,11 +94,11 @@ final class PunctuationCalibrationTests: XCTestCase {
     /// The common case: the model punctuated by itself and the person said no punctuation at
     /// all. Nothing was substituted, so there is nothing to learn.
     func testLearnsNothingWhenThePunctuationWasNotSpoken() {
-        XCTAssertTrue(derive("He said, \"hello.\"", "He said, \"hello.\"").isEmpty)
+        XCTAssertTrue(derive("He said \"hello\" today", "He said \"hello\" today").isEmpty)
     }
 
     func testLearnsNothingFromAnEmptyTranscript() {
-        XCTAssertTrue(derive("He said, \"hello.\"", "").isEmpty)
+        XCTAssertTrue(derive("He said \"hello\" today", "").isEmpty)
     }
 
     /// A hyphen inside a word is not punctuation anybody reads aloud.
@@ -103,39 +111,39 @@ final class PunctuationCalibrationTests: XCTestCase {
 
     /// An apostrophe is not in the learnable set, so "n'était" never produces a rule.
     func testApostropheIsNotARule() {
-        let rules = derive("Personne n'était là.", "personne n'était là point")
-        XCTAssertEqual(rules.map(\.mark), ["."])
+        let rules = derive("Personne n'était là : voilà.", "personne n'était là deux points voilà")
+        XCTAssertEqual(rules.map(\.mark), [":"])
     }
 
     /// A long run of misheard words between two anchors is not a phrasing, it is a mistake.
     func testRefusesImplausiblyLongPhrasings() {
-        let rules = derive("Yes, no.",
+        let rules = derive("Yes: no.",
                            "Yes " + String(repeating: "wandering ", count: 12) + "no")
 
-        XCTAssertTrue(rules.filter { $0.mark == "," }.isEmpty)
+        XCTAssertTrue(rules.filter { $0.mark == ":" }.isEmpty)
     }
 
     // MARK: - Turning them into dictionary rules
 
-    /// Four sentences each containing a comma should leave one comma rule holding every
+    /// Four sentences each containing a colon should leave one colon rule holding every
     /// phrasing, not four rules.
     func testGathersPhrasingsPerMark() {
         let entries = PunctuationCalibration.entries(from: [
-            .init(spoken: "comma", mark: ",", spacing: .attachesLeft),
-            .init(spoken: "coma", mark: ",", spacing: .attachesLeft),
-            .init(spoken: "period", mark: ".", spacing: .attachesLeft),
+            .init(spoken: "colon", mark: ":", spacing: .attachesLeft),
+            .init(spoken: "two points", mark: ":", spacing: .attachesLeft),
+            .init(spoken: "semicolon", mark: ";", spacing: .attachesLeft),
         ])
 
         XCTAssertEqual(entries.count, 2)
-        XCTAssertEqual(entries[0].replacement, ",")
-        XCTAssertEqual(entries[0].original, "comma")
-        XCTAssertEqual(entries[0].alternates, ["coma"])
+        XCTAssertEqual(entries[0].replacement, ":")
+        XCTAssertEqual(entries[0].original, "colon")
+        XCTAssertEqual(entries[0].alternates, ["two points"])
     }
 
     func testDoesNotRepeatTheSamePhrasing() {
         let entries = PunctuationCalibration.entries(from: [
-            .init(spoken: "comma", mark: ",", spacing: .attachesLeft),
-            .init(spoken: "Comma", mark: ",", spacing: .attachesLeft),
+            .init(spoken: "colon", mark: ":", spacing: .attachesLeft),
+            .init(spoken: "Colon", mark: ":", spacing: .attachesLeft),
         ])
 
         XCTAssertEqual(entries.count, 1)
@@ -150,9 +158,11 @@ final class PunctuationCalibrationTests: XCTestCase {
         let entries = PunctuationCalibration.entries(from: rules)
 
         let applied = CustomDictionary.apply(
-            "She said open quote goodbye close quote and stayed period", entries: entries)
+            "She said open quote goodbye close quote and stayed", entries: entries)
 
-        XCTAssertEqual(applied, "She said \"goodbye\" and stayed.")
+        // "period" is deliberately absent: the model writes full stops itself, so we teach no
+        // rule for them and the word would be left standing.
+        XCTAssertEqual(applied, "She said \"goodbye\" and stayed")
     }
 
     /// The same character pulling in opposite directions must stay two rules.
