@@ -1310,6 +1310,7 @@ struct SettingsView: View {
     @State private var previousModelURL: URL?
     @State private var appLanguage = LanguageManager.selected
     @State private var langNeedsRelaunch = false
+    @State private var showPunctuationCalibration = false
 
     /// Curated cancel-recording keys (the recorder can't capture Esc / single special keys).
 
@@ -1598,6 +1599,15 @@ struct SettingsView: View {
         // construction: preferences aren't observed, so the slider wrote a value nothing
         // ever re-read and the setting appeared to do nothing until the app restarted.
         .environment(\.appTextScale, viewModel.textScale)
+        .sheet(isPresented: $showPunctuationCalibration) {
+            PunctuationCalibrationView(
+                onFinish: { entries in
+                    viewModel.customDictionaryEntries.append(contentsOf: entries)
+                    showPunctuationCalibration = false
+                },
+                onCancel: { showPunctuationCalibration = false })
+            .environment(\.appTextScale, viewModel.textScale)
+        }
     }
     
     /// Compact engine card (design 1b): name + one-line subtitle, copper when browsed.
@@ -2033,13 +2043,26 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9))
                     .padding(.leading, 16)
 
-                    Button {
-                        viewModel.customDictionaryEntries.append(CustomDictionaryEntry())
-                    } label: {
-                        Label("Add word", systemImage: "plus")
-                            .scaledFont(size: 11.5, weight: .medium)
+                    HStack(spacing: 10) {
+                        Button {
+                            viewModel.customDictionaryEntries.append(CustomDictionaryEntry())
+                        } label: {
+                            Label("Add word", systemImage: "plus")
+                                .scaledFont(size: 11.5, weight: .medium)
+                        }
+                        .controlSize(.small)
+
+                        // Punctuation rules are the case nobody gets right by hand: the phrasing
+                        // is personal and the spacing is fiddly. Reading a few sentences settles
+                        // both.
+                        Button {
+                            showPunctuationCalibration = true
+                        } label: {
+                            Label("Teach punctuation", systemImage: "text.quote")
+                                .scaledFont(size: 11.5, weight: .medium)
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
                     .padding(.leading, 16)
                 }
             }
