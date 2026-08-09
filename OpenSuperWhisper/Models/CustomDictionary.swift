@@ -123,6 +123,50 @@ enum CustomDictionary {
         return result
     }
 
+    /// Folds rules that write the same thing into one.
+    ///
+    /// Before a rule could hold several phrasings, saying a thing three ways meant three rows
+    /// all writing "My Monkey". The badge editor then showed three identical badges, which is
+    /// the same information presented as clutter. Merging is lossless: every phrasing survives
+    /// as an alternate of the rule that keeps them.
+    ///
+    /// Spacing is part of the key, since an opening and a closing quote write the same character
+    /// while pulling opposite ways. Rules with no replacement yet are left alone: they are rows
+    /// someone is still filling in, and collapsing them would delete work in progress.
+    static func merged(_ entries: [CustomDictionaryEntry]) -> [CustomDictionaryEntry] {
+        struct Key: Hashable {
+            let replacement: String
+            let spacing: CustomDictionaryEntry.Spacing
+        }
+
+        var result: [CustomDictionaryEntry] = []
+        var positionByKey: [Key: Int] = [:]
+
+        for entry in entries {
+            let replacement = entry.replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !replacement.isEmpty else {
+                result.append(entry)
+                continue
+            }
+
+            let key = Key(replacement: replacement, spacing: entry.spacing)
+            guard let position = positionByKey[key] else {
+                positionByKey[key] = result.count
+                result.append(entry)
+                continue
+            }
+
+            for trigger in entry.triggers
+            where !result[position].triggers.contains(where: {
+                $0.caseInsensitiveCompare(trigger) == .orderedSame
+            }) {
+                result[position].alternates.append(trigger)
+            }
+        }
+
+        return result
+    }
+
     /// The de-duplicated list of replacement terms (the "correct" forms). This is
     /// the single source of the words we boost on both engines: Whisper via the
     /// initial prompt (`promptBoost`) and Parakeet via custom-vocabulary boosting

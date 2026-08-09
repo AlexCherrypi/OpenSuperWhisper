@@ -700,7 +700,9 @@ class SettingsViewModel: ObservableObject {
         self.initialPrompt = prefs.initialPrompt
         self.customDictionaryEnabled = prefs.customDictionaryEnabled
         self.customDictionaryBoostEnabled = prefs.customDictionaryBoostEnabled
-        self.customDictionaryEntries = prefs.customDictionaryEntries
+        // Folded when the window opens rather than as the user types: merging live would yank a
+        // row away mid-keystroke the moment its replacement matched another.
+        self.customDictionaryEntries = CustomDictionary.merged(prefs.customDictionaryEntries)
         self.useBeamSearch = prefs.useBeamSearch
         self.beamSize = prefs.beamSize
         self.debugMode = prefs.debugMode
