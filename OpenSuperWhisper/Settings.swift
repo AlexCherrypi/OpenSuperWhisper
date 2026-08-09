@@ -700,7 +700,9 @@ class SettingsViewModel: ObservableObject {
         self.initialPrompt = prefs.initialPrompt
         self.customDictionaryEnabled = prefs.customDictionaryEnabled
         self.customDictionaryBoostEnabled = prefs.customDictionaryBoostEnabled
-        self.customDictionaryEntries = prefs.customDictionaryEntries
+        // Folded when the window opens rather than as the user types: merging live would yank a
+        // row away mid-keystroke the moment its replacement matched another.
+        self.customDictionaryEntries = CustomDictionary.merged(prefs.customDictionaryEntries)
         self.useBeamSearch = prefs.useBeamSearch
         self.beamSize = prefs.beamSize
         self.debugMode = prefs.debugMode
@@ -1993,76 +1995,19 @@ struct SettingsView: View {
                     .padding(.leading, 16)
                     .frame(minHeight: 24)
 
-                    VStack(spacing: 0) {
-                        HStack(spacing: 10) {
-                            Text("Heard").frame(maxWidth: .infinity, alignment: .leading)
-                            Text("Replace with").frame(maxWidth: .infinity, alignment: .leading)
-                            Color.clear.frame(width: 24, height: 1)
-                        }
-                        .scaledFont(size: 10, weight: .bold)
-                        .tracking(0.6)
-                        .textCase(.uppercase)
-                        .foregroundColor(STheme.sectionTitle)
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(STheme.controlBg.opacity(0.6))
+                    DictionaryBadgeEditor(entries: $viewModel.customDictionaryEntries)
+                        .padding(.leading, 16)
 
-                        if viewModel.customDictionaryEntries.isEmpty {
-                            Text("No words yet. Add one below.")
-                                .scaledFont(size: 11).foregroundColor(STheme.hint)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 14)
-                        }
-                        ForEach($viewModel.customDictionaryEntries) { $entry in
-                            HStack(spacing: 10) {
-                                TextField("", text: $entry.original, prompt: Text("git hub"))
-                                    .textFieldStyle(.plain)
-                                    .scaledFont(size: 12)
-                                    .frame(maxWidth: .infinity)
-                                Text("→").scaledFont(size: 11).foregroundColor(STheme.hint)
-                                TextField("", text: $entry.replacement, prompt: Text("GitHub"))
-                                    .textFieldStyle(.plain)
-                                    .scaledFont(size: 12)
-                                    .frame(maxWidth: .infinity)
-                                Button {
-                                    viewModel.customDictionaryEntries.removeAll { $0.id == entry.id }
-                                } label: {
-                                    Image(systemName: "trash")
-                                        .scaledFont(size: 11)
-                                        .foregroundColor(STheme.hint)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Remove this entry")
-                                .frame(width: 24)
-                            }
-                            .padding(.horizontal, 12).padding(.vertical, 7)
-                            Rectangle().fill(STheme.border).frame(height: 1)
-                        }
+                    // Punctuation is the case nobody gets right by hand: the phrasing is
+                    // personal and the spacing is fiddly. Reading a few sentences settles both,
+                    // and the rules land in the badges above.
+                    Button {
+                        showPunctuationCalibration = true
+                    } label: {
+                        Label("Teach punctuation", systemImage: "text.quote")
+                            .scaledFont(size: 11.5, weight: .medium)
                     }
-                    .background(RoundedRectangle(cornerRadius: 9).fill(STheme.cardBg))
-                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(STheme.border, lineWidth: 1))
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
-                    .padding(.leading, 16)
-
-                    HStack(spacing: 10) {
-                        Button {
-                            viewModel.customDictionaryEntries.append(CustomDictionaryEntry())
-                        } label: {
-                            Label("Add word", systemImage: "plus")
-                                .scaledFont(size: 11.5, weight: .medium)
-                        }
-                        .controlSize(.small)
-
-                        // Punctuation rules are the case nobody gets right by hand: the phrasing
-                        // is personal and the spacing is fiddly. Reading a few sentences settles
-                        // both.
-                        Button {
-                            showPunctuationCalibration = true
-                        } label: {
-                            Label("Teach punctuation", systemImage: "text.quote")
-                                .scaledFont(size: 11.5, weight: .medium)
-                        }
-                        .controlSize(.small)
-                    }
+                    .controlSize(.small)
                     .padding(.leading, 16)
                 }
             }

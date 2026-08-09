@@ -56,6 +56,20 @@ struct CustomDictionaryEntry: Codable, Identifiable, Equatable, Hashable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    /// Drops one phrasing, counting from the primary at 0.
+    ///
+    /// Removing the primary promotes the next one instead of blanking it: an entry with no
+    /// primary but surviving alternates matches nothing, so the rule would look present in the
+    /// editor while having quietly stopped working.
+    mutating func removeTrigger(at position: Int) {
+        if position == 0 {
+            original = alternates.first ?? ""
+            if !alternates.isEmpty { alternates.removeFirst() }
+        } else if alternates.indices.contains(position - 1) {
+            alternates.remove(at: position - 1)
+        }
+    }
 }
 
 enum CustomDictionary {
@@ -106,6 +120,50 @@ enum CustomDictionary {
                                                         withTemplate: template)
             }
         }
+        return result
+    }
+
+    /// Folds rules that write the same thing into one.
+    ///
+    /// Before a rule could hold several phrasings, saying a thing three ways meant three rows
+    /// all writing "My Monkey". The badge editor then showed three identical badges, which is
+    /// the same information presented as clutter. Merging is lossless: every phrasing survives
+    /// as an alternate of the rule that keeps them.
+    ///
+    /// Spacing is part of the key, since an opening and a closing quote write the same character
+    /// while pulling opposite ways. Rules with no replacement yet are left alone: they are rows
+    /// someone is still filling in, and collapsing them would delete work in progress.
+    static func merged(_ entries: [CustomDictionaryEntry]) -> [CustomDictionaryEntry] {
+        struct Key: Hashable {
+            let replacement: String
+            let spacing: CustomDictionaryEntry.Spacing
+        }
+
+        var result: [CustomDictionaryEntry] = []
+        var positionByKey: [Key: Int] = [:]
+
+        for entry in entries {
+            let replacement = entry.replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !replacement.isEmpty else {
+                result.append(entry)
+                continue
+            }
+
+            let key = Key(replacement: replacement, spacing: entry.spacing)
+            guard let position = positionByKey[key] else {
+                positionByKey[key] = result.count
+                result.append(entry)
+                continue
+            }
+
+            for trigger in entry.triggers
+            where !result[position].triggers.contains(where: {
+                $0.caseInsensitiveCompare(trigger) == .orderedSame
+            }) {
+                result[position].alternates.append(trigger)
+            }
+        }
+
         return result
     }
 
