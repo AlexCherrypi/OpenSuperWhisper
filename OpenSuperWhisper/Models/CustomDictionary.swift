@@ -56,6 +56,20 @@ struct CustomDictionaryEntry: Codable, Identifiable, Equatable, Hashable {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
+
+    /// Drops one phrasing, counting from the primary at 0.
+    ///
+    /// Removing the primary promotes the next one instead of blanking it: an entry with no
+    /// primary but surviving alternates matches nothing, so the rule would look present in the
+    /// editor while having quietly stopped working.
+    mutating func removeTrigger(at position: Int) {
+        if position == 0 {
+            original = alternates.first ?? ""
+            if !alternates.isEmpty { alternates.removeFirst() }
+        } else if alternates.indices.contains(position - 1) {
+            alternates.remove(at: position - 1)
+        }
+    }
 }
 
 enum CustomDictionary {
