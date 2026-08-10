@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import KeyboardShortcuts
 import SwiftUI
 
@@ -23,13 +24,19 @@ class IndicatorWindowManager: IndicatorViewDelegate {
     private var anchorFromTop = false
     private var anchorTopY: CGFloat = 0
     private var resizeObserver: NSObjectProtocol?
+    private var drainObserver: AnyCancellable?
 
     private init() {}
     
     func show(nearPoint point: NSPoint? = nil) -> IndicatorViewModel {
         
         KeyboardShortcuts.enable(.escape)
-        
+
+        // A recording started while the previous one was still transcribing: the bubble belongs
+        // to the new take now, so stop waiting to hide it on the old one's behalf.
+        drainObserver?.cancel()
+        drainObserver = nil
+
         // Create new view model
         let newViewModel = IndicatorViewModel()
         newViewModel.delegate = self
@@ -235,7 +242,9 @@ class IndicatorWindowManager: IndicatorViewDelegate {
 
     func hide() {
         KeyboardShortcuts.disable(.escape)
-        
+        drainObserver?.cancel()
+        drainObserver = nil
+
         Task {
             guard let viewModel = self.viewModel else { return }
 
@@ -258,6 +267,36 @@ class IndicatorWindowManager: IndicatorViewDelegate {
     }
     
     func didFinishDecoding() {
-        hide()
+        // The clip has gone to the background pipeline and the bubble is free for the next
+        // recording. It used to vanish here, which left nothing on screen between the moment
+        // you stop talking and the moment the text lands: on a slow model that reads as the
+        // dictation having been dropped. It stays instead, showing that work is still running.
+        guard DictationPipeline.shared.isProcessing else {
+            hide()
+            return
+        }
+
+        viewModel?.state = .decoding
+        watchPipelineDrain()
+    }
+
+    /// Hides the bubble once the queue empties.
+    ///
+    /// Nothing is torn down if a new recording arrives first: `show()` hands out a fresh view
+    /// model, and this only ever hides while the one it is watching is still the current one and
+    /// still decoding.
+    private func watchPipelineDrain() {
+        drainObserver?.cancel()
+        let watched = viewModel
+        drainObserver = DictationPipeline.shared.$isProcessing
+            .removeDuplicates()
+            .filter { !$0 }
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.viewModel === watched, self.viewModel?.state == .decoding
+                    else { return }
+                    self.hide()
+                }
+            }
     }
 }
