@@ -74,12 +74,21 @@ struct IndicatorElementView: View {
         }
     }
 
-    /// A circular `ProgressView` draws at 16pt whatever frame it is given, so reaching the
-    /// meter's height means scaling the drawing itself.
+    /// A circular `ProgressView` draws at 16pt whatever frame it is given, so matching the meter
+    /// means scaling the drawing itself.
     private static let spinnerIntrinsicSize: CGFloat = 16
 
+    /// Well short of the meter's full height on purpose. A disc filling all 30pt looks heavier
+    /// than the bars beside it, which only reach the top on peaks. Settled by eye at a little
+    /// over a third, which sits level with them rather than above.
+    private static let spinnerHeightRatio: CGFloat = 0.38
+
+    /// Below this it stops reading as a spinner and starts reading as a speck.
+    private static let spinnerMinimumSize: CGFloat = 10
+
     private var spinnerScale: CGFloat {
-        max(1, meterHeight * scale / Self.spinnerIntrinsicSize)
+        let target = max(Self.spinnerMinimumSize, meterHeight * scale * Self.spinnerHeightRatio)
+        return target / Self.spinnerIntrinsicSize
     }
 
     private var labelText: String {
