@@ -487,6 +487,8 @@ struct IndicatorWindow: View {
     /// being read at a glance. Set in the layout editor, where the effect is visible.
     private var meterHeight: CGFloat { layout.waveformHeight }
 
+    private var decodingElements: [IndicatorElement] { layout.decoding }
+
     /// Opt-in on-bubble controls (default off). Shown on the trailing side while
     /// recording. Stop = stop & transcribe (same as the hotkey toggle); Cancel =
     /// discard (same as the Esc cancel shortcut). Fixed-size, so they don't couple
@@ -601,16 +603,18 @@ struct IndicatorWindow: View {
                 }
 
             case .decoding:
-                // Keep the same height as the recording state (the spinner's intrinsic
-                // height is capped) so the bubble doesn't jump taller when transcribing.
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 24, height: 16)
-
-                    Text("Transcribing...")
-                        .scaledFont(size: 13, weight: .semibold)
-                }                
+                // Built from the user's own layout so the bubble keeps its shape: whoever chose
+                // the meter gets a spinner of the same width, whoever chose the label gets
+                // different words, whoever chose both gets both. The stop and cancel buttons
+                // drop out, since there is no longer anything to stop.
+                HStack(alignment: .center, spacing: 10) {
+                    ForEach(decodingElements) { element in
+                        IndicatorElementView(element: element,
+                                             meterHeight: meterHeight,
+                                             queued: pipeline.pendingCount,
+                                             isDecoding: true)
+                    }
+                }
             case .busy:
                 HStack(spacing: 8) {
                     Image(systemName: "hourglass")

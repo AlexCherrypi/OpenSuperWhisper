@@ -14,6 +14,11 @@ struct IndicatorElementView: View {
     /// The editor's preview has no manager to call, so its buttons do nothing.
     var isInteractive = true
 
+    /// Recording is over and the clip is being transcribed. Each element shows its waiting form
+    /// in the same footprint, so the bubble does not resize between the two states: the meter
+    /// becomes a spinner of exactly its width, the label changes its words.
+    var isDecoding = false
+
     /// The bubble is mostly graphics, so its dimensions follow the text setting too — otherwise
     /// raising it moves the one small label and nothing else.
     @Environment(\.textScaleFactor) private var scale
@@ -24,9 +29,16 @@ struct IndicatorElementView: View {
             RecordingIndicator(isBlinking: isBlinking, isLatched: isLatched)
                 .frame(width: 16 * scale)
         case .waveform:
-            InputLevelMeter(bands: bands, height: meterHeight * scale)
+            if isDecoding {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.7)
+                    .frame(width: InputLevelMeter.width, height: meterHeight * scale)
+            } else {
+                InputLevelMeter(bands: bands, height: meterHeight * scale)
+            }
         case .label:
-            Text(queued > 0 ? "Recording… · \(queued) queued" : "Recording…")
+            Text(labelText)
                 .scaledFont(size: 13, weight: .semibold)
                 .foregroundColor(.secondary)
                 // The bubble is a fixed width, so the label would wrap rather than widen it.
@@ -43,6 +55,13 @@ struct IndicatorElementView: View {
                 IndicatorWindowManager.shared.stopForce()
             }
         }
+    }
+
+    private var labelText: String {
+        if isDecoding {
+            return queued > 1 ? "Transcribing… · \(queued - 1) queued" : "Transcribing…"
+        }
+        return queued > 0 ? "Recording… · \(queued) queued" : "Recording…"
     }
 
     private func button(symbol: String, size: CGFloat, help: String,
