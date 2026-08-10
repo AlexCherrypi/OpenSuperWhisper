@@ -30,9 +30,14 @@ struct IndicatorElementView: View {
                 .frame(width: 16 * scale)
         case .waveform:
             if isDecoding {
+                // Scaled up to the meter's own height. A spinner left at its intrinsic 16pt sat
+                // as a dot in the middle of a 30pt-tall gap, which read as something broken
+                // rather than something working. The frame keeps the meter's exact footprint,
+                // so only the drawing changes size, never the bubble.
                 ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.7)
+                    .progressViewStyle(.circular)
+                    .controlSize(.regular)
+                    .scaleEffect(spinnerScale)
                     .frame(width: InputLevelMeter.width, height: meterHeight * scale)
             } else {
                 InputLevelMeter(bands: bands, height: meterHeight * scale)
@@ -67,6 +72,14 @@ struct IndicatorElementView: View {
                 }
             }
         }
+    }
+
+    /// A circular `ProgressView` draws at 16pt whatever frame it is given, so reaching the
+    /// meter's height means scaling the drawing itself.
+    private static let spinnerIntrinsicSize: CGFloat = 16
+
+    private var spinnerScale: CGFloat {
+        max(1, meterHeight * scale / Self.spinnerIntrinsicSize)
     }
 
     private var labelText: String {
