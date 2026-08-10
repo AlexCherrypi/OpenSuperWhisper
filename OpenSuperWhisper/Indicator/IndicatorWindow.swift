@@ -471,6 +471,11 @@ struct IndicatorWindow: View {
         if isNotchMode {
             return (hasCaption ? max(notch.width, 440) : notch.width) + buttonExtraWidth + meterWidthAllowance
         }
+        // The cancel confirmation replaces everything with one short line, and it must be
+        // readable whatever was there before: a width chosen for a caption or a meter has no
+        // reason to fit it. Hug the sentence instead.
+        if viewModel.isConfirmingCancel { return nil }
+
         let live = viewModel.state == .recording && IndicatorViewModel.shouldUseLiveStreaming
         if live && hasCaption { return 380 + buttonExtraWidth + meterWidthAllowance }
         // Decoding draws the same elements as recording, so it sizes to its content the same
@@ -551,23 +556,27 @@ struct IndicatorWindow: View {
                         .scaledFont(size: 13, weight: .semibold)
                 }                
             case .recording:
-                if streaming.confirmedText.isEmpty && streaming.volatileText.isEmpty {
+                if viewModel.isConfirmingCancel {
+                    // Takes over the whole bubble, above the meter and above a live caption
+                    // alike. It used to live inside the no-caption branch only, so on an engine
+                    // that streams text the first Esc looked like nothing had happened and the
+                    // second one threw the dictation away unannounced.
+                    Text("Press Esc to cancel")
+                        .scaledFont(size: 12, weight: .semibold)
+                        .foregroundColor(.orange)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .transition(.opacity)
+                } else if streaming.confirmedText.isEmpty && streaming.volatileText.isEmpty {
                     // Before any text arrives, just the dot + label, vertically centered.
                     HStack(alignment: .center, spacing: 10) {
-                        if viewModel.isConfirmingCancel {
-                            Text("Press Esc to cancel")
-                                .scaledFont(size: 12, weight: .semibold)
-                                .foregroundColor(.orange)
-                                .transition(.opacity)
-                        } else {
-                            ForEach(layout.leading) { element in
-                                IndicatorElementView(element: element,
-                                                     bands: spectrum.bands,
-                                                     meterHeight: meterHeight,
-                                                     isBlinking: viewModel.isBlinking,
-                                                     isLatched: viewModel.isLatched,
-                                                     queued: pipeline.pendingCount)
-                            }
+                        ForEach(layout.leading) { element in
+                            IndicatorElementView(element: element,
+                                                 bands: spectrum.bands,
+                                                 meterHeight: meterHeight,
+                                                 isBlinking: viewModel.isBlinking,
+                                                 isLatched: viewModel.isLatched,
+                                                 queued: pipeline.pendingCount)
                         }
                         if !layout.trailing.isEmpty {
                             Spacer(minLength: 8)
