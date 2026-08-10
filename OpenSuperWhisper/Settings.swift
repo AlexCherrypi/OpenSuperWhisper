@@ -1500,6 +1500,11 @@ struct SettingsView: View {
                 }
                 Spacer(minLength: 0)
 
+                // Sits with the navigation rather than in the list being downloaded from, so it
+                // survives the user wandering to another page while a model comes down.
+                DownloadsSidebarCard(viewModel: viewModel)
+                    .padding(.bottom, 8)
+
                 Rectangle().fill(STheme.border).frame(height: 1).padding(.vertical, 8)
                 ForEach(SettingsTab.footer.filter(matchesSearch)) { tab in
                     sidebarRow(tab, compact: true)
@@ -1650,32 +1655,6 @@ struct SettingsView: View {
             .frame(maxWidth: 340, alignment: .trailing)
     }
 
-    /// Shared "downloading…" progress block for the local-engine lists.
-    @ViewBuilder private var downloadProgressBlock: some View {
-        if viewModel.isDownloading {
-            HStack(spacing: 12) {
-                if viewModel.downloadProgress > 0 {
-                    ProgressView(value: viewModel.downloadProgress)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .tint(STheme.accent)
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-                if let downloadingName = viewModel.downloadingModelName {
-                    Text(downloadingName)
-                        .scaledFont(size: 11, design: .monospaced)
-                        .foregroundColor(STheme.hint)
-                        .lineLimit(1)
-                }
-                Button("Cancel") { viewModel.cancelDownload() }
-                    .controlSize(.small)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 9).fill(STheme.cardBg))
-            .overlay(RoundedRectangle(cornerRadius: 9).stroke(STheme.border, lineWidth: 1))
-        }
-    }
-
     /// Models-directory row (Storage section of the local engines).
     private func storageSection(path: String, open: @escaping () -> Void) -> some View {
         SSection(title: "Storage") {
@@ -1732,7 +1711,6 @@ struct SettingsView: View {
                                     ModelDownloadItemView(model: $model, viewModel: viewModel)
                                 }
                             }
-                            downloadProgressBlock
                         }
                         storageSection(path: WhisperModelManager.shared.modelsDirectory.path) {
                             NSWorkspace.shared.open(WhisperModelManager.shared.modelsDirectory)
@@ -1750,7 +1728,6 @@ struct SettingsView: View {
                                     FluidAudioModelDownloadItemView(model: $model, viewModel: viewModel)
                                 }
                             }
-                            downloadProgressBlock
                         }
                         storageSection(path: AsrModels.defaultCacheDirectory(for: .v3).deletingLastPathComponent().path) {
                             NSWorkspace.shared.open(AsrModels.defaultCacheDirectory(for: .v3).deletingLastPathComponent())
@@ -2674,6 +2651,13 @@ struct ModelDownloadItemView: View {
 
                 if model.downloadProgress > 0 && model.downloadProgress < 1 {
                     ProgressView(value: model.downloadProgress)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(height: 6)
+                        .padding(.top, 4)
+                } else if viewModel.isDownloading && viewModel.downloadingModelName == model.name {
+                    // Between the click and the first byte there is no percentage to show, and
+                    // an empty row reads as nothing having happened.
+                    ProgressView()
                         .progressViewStyle(LinearProgressViewStyle())
                         .frame(height: 6)
                         .padding(.top, 4)
