@@ -16,33 +16,38 @@ final class DecodingLayoutTests: XCTestCase {
     }
 
     func testMeterOnlyStaysMeterOnly() {
-        let elements = layout(hiding: [.label, .stopButton, .cancelButton]).decoding
+        let elements = layout(hiding: [.label, .stopButton, .cancelButton]).decodingLeading
 
         XCTAssertTrue(elements.contains(.waveform))
         XCTAssertFalse(elements.contains(.label), "a label would widen a bubble that had none")
     }
 
     func testLabelOnlyStaysLabelOnly() {
-        let elements = layout(hiding: [.waveform, .stopButton, .cancelButton]).decoding
+        let elements = layout(hiding: [.waveform, .stopButton, .cancelButton]).decodingLeading
 
         XCTAssertTrue(elements.contains(.label))
         XCTAssertFalse(elements.contains(.waveform))
     }
 
     func testBothStayBoth() {
-        let elements = layout(hiding: [.stopButton, .cancelButton]).decoding
+        let elements = layout(hiding: [.stopButton, .cancelButton]).decodingLeading
 
         XCTAssertTrue(elements.contains(.waveform))
         XCTAssertTrue(elements.contains(.label))
     }
 
-    /// Nothing left to stop once the clip is queued, and a dead button invites a click that
-    /// does nothing.
-    func testControlsAreDropped() {
-        let elements = layout(hiding: []).decoding
+    /// The controls are trailing, drawn separately and greyed by the element view rather than
+    /// removed: taking them out would reflow the bubble at the moment recording stops.
+    func testControlsAreNotPartOfTheLeadingRun() {
+        // Both buttons are hidden by default, so they have to be asked for.
+        var withButtons = layout(hiding: [])
+        withButtons.setVisible(true, for: .stopButton)
+        withButtons.setVisible(true, for: .cancelButton)
 
-        XCTAssertFalse(elements.contains(.stopButton))
-        XCTAssertFalse(elements.contains(.cancelButton))
+        XCTAssertFalse(withButtons.decodingLeading.contains(.stopButton))
+        XCTAssertFalse(withButtons.decodingLeading.contains(.cancelButton))
+        XCTAssertEqual(withButtons.trailing, [.stopButton, .cancelButton],
+                       "they stay in the layout, just on the other side")
     }
 
     /// A lone dot cannot say "still working": it looks the same either way. The meter is
@@ -52,7 +57,7 @@ final class DecodingLayoutTests: XCTestCase {
         var dotOnly = layout(hiding: [.waveform, .label, .stopButton, .cancelButton])
         dotOnly.setVisible(true, for: .dot)
 
-        let elements = dotOnly.decoding
+        let elements = dotOnly.decodingLeading
 
         XCTAssertTrue(elements.contains(.waveform), "nothing else could show progress")
         XCTAssertTrue(elements.contains(.dot), "the dot the user chose is still theirs")
@@ -62,12 +67,12 @@ final class DecodingLayoutTests: XCTestCase {
     func testOrderMatchesTheRecordingLayout() {
         let chosen = layout(hiding: [.stopButton, .cancelButton])
 
-        XCTAssertEqual(chosen.decoding, chosen.leading)
+        XCTAssertEqual(chosen.decodingLeading, chosen.leading)
     }
 
     /// Hiding everything is a layout someone can actually save.
     func testAnEmptyLayoutStillShowsSomething() {
-        let elements = layout(hiding: IndicatorElement.allCases).decoding
+        let elements = layout(hiding: IndicatorElement.allCases).decodingLeading
 
         XCTAssertEqual(elements, [.waveform])
     }

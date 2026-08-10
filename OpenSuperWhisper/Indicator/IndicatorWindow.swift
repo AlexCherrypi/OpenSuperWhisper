@@ -473,7 +473,10 @@ struct IndicatorWindow: View {
         }
         let live = viewModel.state == .recording && IndicatorViewModel.shouldUseLiveStreaming
         if live && hasCaption { return 380 + buttonExtraWidth + meterWidthAllowance }
-        if viewModel.state == .recording { return nil }
+        // Decoding draws the same elements as recording, so it sizes to its content the same
+        // way. Pinning it to 200 made the bubble jump wider the moment the user stopped
+        // talking. The fixed width is for the message states below, which are prose.
+        if viewModel.state == .recording || viewModel.state == .decoding { return nil }
         return 200 + buttonExtraWidth + meterWidthAllowance
     }
     
@@ -487,7 +490,7 @@ struct IndicatorWindow: View {
     /// being read at a glance. Set in the layout editor, where the effect is visible.
     private var meterHeight: CGFloat { layout.waveformHeight }
 
-    private var decodingElements: [IndicatorElement] { layout.decoding }
+    private var decodingElements: [IndicatorElement] { layout.decodingLeading }
 
     /// Opt-in on-bubble controls (default off). Shown on the trailing side while
     /// recording. Stop = stop & transcribe (same as the hotkey toggle); Cancel =
@@ -613,6 +616,17 @@ struct IndicatorWindow: View {
                                              meterHeight: meterHeight,
                                              queued: pipeline.pendingCount,
                                              isDecoding: true)
+                    }
+                    if !layout.trailing.isEmpty {
+                        Spacer(minLength: 8)
+                        HStack(spacing: 8) {
+                            ForEach(layout.trailing) { element in
+                                IndicatorElementView(element: element,
+                                                     meterHeight: meterHeight,
+                                                     queued: pipeline.pendingCount,
+                                                     isDecoding: true)
+                            }
+                        }
                     }
                 }
             case .busy:

@@ -47,12 +47,24 @@ struct IndicatorElementView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .transition(.opacity)
         case .stopButton:
-            button(symbol: "stop.circle", size: 19, help: "Finish recording") {
+            // Already stopped: kept in place, greyed, so the bubble does not reflow when the
+            // recording ends.
+            button(symbol: "stop.circle", size: 19,
+                   help: isDecoding ? "Already stopped" : "Finish recording",
+                   enabled: !isDecoding) {
                 IndicatorWindowManager.shared.stopRecording()
             }
         case .cancelButton:
-            button(symbol: "trash", size: 16, help: "Discard recording") {
-                IndicatorWindowManager.shared.stopForce()
+            // Stays live through the transcription: changing your mind is exactly what happens
+            // while you watch a slow model work, and until the text lands there is still
+            // something to throw away.
+            button(symbol: "trash", size: 16,
+                   help: isDecoding ? "Throw this transcription away" : "Discard recording") {
+                if isDecoding {
+                    DictationPipeline.shared.discardEverything()
+                } else {
+                    IndicatorWindowManager.shared.stopForce()
+                }
             }
         }
     }
@@ -64,18 +76,19 @@ struct IndicatorElementView: View {
         return queued > 0 ? "Recording… · \(queued) queued" : "Recording…"
     }
 
-    private func button(symbol: String, size: CGFloat, help: String,
+    private func button(symbol: String, size: CGFloat, help: String, enabled: Bool = true,
                         action: @escaping () -> Void) -> some View {
-        Button { if isInteractive { action() } } label: {
+        Button { if isInteractive && enabled { action() } } label: {
             Image(systemName: symbol)
                 .scaledFont(size: size, weight: .regular)
-                .foregroundColor(.red)
+                .foregroundColor(enabled ? .red : .secondary)
+                .opacity(enabled ? 1 : 0.4)
                 .frame(width: 24 * scale, height: 24 * scale)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointerCursorOnHover()
         .help(help)
-        .allowsHitTesting(isInteractive)
+        .allowsHitTesting(isInteractive && enabled)
     }
 }

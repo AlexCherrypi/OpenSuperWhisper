@@ -44,9 +44,32 @@ final class DictationPipeline: ObservableObject {
     /// True while the background loop is draining the queue.
     @Published private(set) var isProcessing = false
 
+    /// Set by `discardEverything()` and cleared once the queue drains.
+    ///
+    /// A dictation you have changed your mind about is worse than a slow one: it lands in
+    /// whatever you were typing while you watched it come. Transcription happens off the
+    /// recording, so by then there is nothing left to stop except the insertion itself.
+    private var discarding = false
+
     /// Test seam: when set, used instead of the real engine so unit tests can exercise queue
     /// ordering / pendingCount / no-speech / failure paths without a model. nil in production.
     var transcribeOverride: ((URL, Settings) async throws -> String)?
+
+    /// Throws away everything queued and in flight: nothing is inserted, saved, or pasted.
+    ///
+    /// The clip being transcribed cannot be un-transcribed, so the engine is asked to stop and
+    /// whatever it returns is dropped on the floor. Anything still queued never starts.
+    func discardEverything() {
+        guard isProcessing || !queue.isEmpty else { return }
+
+        discarding = true
+        for item in queue {
+            try? FileManager.default.removeItem(at: item.tempURL)
+        }
+        queue.removeAll()
+        refreshPendingCount()
+        transcriptionService.cancelTranscription()
+    }
 
     private var queue: [PendingDictation] = []
     private var inFlight = false
@@ -92,6 +115,8 @@ final class DictationPipeline: ObservableObject {
             }
             self.isProcessing = false
             self.loopTask = nil
+            // Only the run that was discarded is affected; the next dictation starts clean.
+            self.discarding = false
             self.refreshPendingCount()
         }
     }
@@ -126,6 +151,14 @@ final class DictationPipeline: ObservableObject {
             // item's values, but its engine gate is already released: during those awaits a
             // file-drop/rerun transcription could acquire the gate and overwrite
             // `lastUsedModel`/`lastUsedFallback`, mislabeling this history row. (parallel-recording review)
+            // Checked after the engine returns rather than before: a cancelled transcription
+            // still comes back here, and this is the last point before the text reaches the
+            // user's document. Nothing is saved or inserted.
+            if discarding {
+                try? FileManager.default.removeItem(at: item.tempURL)
+                return
+            }
+
             let modelUsed = transcriptionService.lastUsedModel?.displayName ?? ModelCatalog.activeOption()?.displayName
             let wasFallback = transcriptionService.lastUsedFallback
             var text = AppPreferences.shared.cleanTranscription(rawText)

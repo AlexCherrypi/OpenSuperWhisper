@@ -84,16 +84,18 @@ struct IndicatorLayout: Codable, Equatable {
 
     /// What the bubble shows while the clip is being transcribed.
     ///
-    /// The same elements in the same order, so stopping a recording does not resize the window
-    /// under the user: the meter becomes a spinner of its own width, the label changes its
-    /// words. The controls go, since there is no longer anything to stop or cancel.
+    /// The leading elements while the clip is being transcribed. The trailing controls are
+    /// unchanged and drawn as usual, greyed or not by the element view.
+    ///
+    /// Everything keeps its place and its footprint, so stopping a recording does not reflow the
+    /// window under the user: the meter becomes a spinner of its own width, the label changes
+    /// its words.
     ///
     /// A layout with neither meter nor label has no way to say "still working" — a lone dot
     /// looks exactly like a lone dot — so the meter is borrowed to carry the spinner.
-    var decoding: [IndicatorElement] {
-        let kept = leading.filter { $0 != .stopButton && $0 != .cancelButton }
-        guard kept.contains(.waveform) || kept.contains(.label) else { return kept + [.waveform] }
-        return kept
+    var decodingLeading: [IndicatorElement] {
+        guard contains(.waveform) || contains(.label) else { return leading + [.waveform] }
+        return leading
     }
 
     mutating func setVisible(_ visible: Bool, for element: IndicatorElement) {
