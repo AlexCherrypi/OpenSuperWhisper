@@ -64,6 +64,37 @@ final class PunctuationCalibrationTests: XCTestCase {
         XCTAssertEqual(rules.first(where: { $0.mark == "»" })?.spoken, "fermez les guillemets")
     }
 
+    /// Parentheses are worth teaching for the same reason as quotes: the model never writes one
+    /// unless it is spoken.
+    func testLearnsParentheses() {
+        let rules = derive("He arrived late (again) and said nothing.",
+                           "He arrived late open bracket again close bracket and said nothing")
+
+        XCTAssertEqual(rules.first(where: { $0.mark == "(" })?.spoken, "open bracket")
+        XCTAssertEqual(rules.first(where: { $0.mark == ")" })?.spoken, "close bracket")
+    }
+
+    /// An opening bracket glues to what follows, a closing one to what precedes, or the result
+    /// reads `late ( again ) and`.
+    func testParenthesesGlueToWhatTheyEnclose() {
+        let rules = derive("He arrived late (again) and said nothing.",
+                           "He arrived late open bracket again close bracket and said nothing")
+        let entries = PunctuationCalibration.entries(from: rules)
+
+        XCTAssertEqual(
+            CustomDictionary.apply("She left early open bracket twice close bracket last week",
+                                   entries: entries),
+            "She left early (twice) last week")
+    }
+
+    func testLearnsFrenchParentheses() {
+        let rules = derive("Il est arrivé en retard (encore) et n'a rien dit.",
+                           "Il est arrivé en retard ouvrez la parenthèse encore fermez la parenthèse et n'a rien dit")
+
+        XCTAssertEqual(rules.first(where: { $0.mark == "(" })?.spoken, "ouvrez la parenthèse")
+        XCTAssertEqual(rules.first(where: { $0.mark == ")" })?.spoken, "fermez la parenthèse")
+    }
+
     func testLearnsFrenchColonAndSemicolon() {
         let rules = derive("Elle a répondu : oui ; il n'a rien ajouté.",
                            "Elle a répondu deux points oui point virgule il n'a rien ajouté point")

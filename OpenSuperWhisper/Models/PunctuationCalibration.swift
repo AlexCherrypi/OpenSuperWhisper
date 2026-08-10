@@ -45,7 +45,7 @@ enum PunctuationCalibration {
         Sentence(id: "en-2", language: "en",
                  text: "She had one rule: nobody waits."),
         Sentence(id: "en-3", language: "en",
-                 text: "The sign read \"closed\" all afternoon."),
+                 text: "He arrived late (again) and said nothing."),
         Sentence(id: "en-4", language: "en",
                  text: "He was late; nobody minded."),
     ]
@@ -56,7 +56,7 @@ enum PunctuationCalibration {
         Sentence(id: "fr-2", language: "fr",
                  text: "Elle n'a donné qu'une consigne : personne n'attend."),
         Sentence(id: "fr-3", language: "fr",
-                 text: "Le panneau indiquait « fermé » tout l'après-midi."),
+                 text: "Il est arrivé en retard (encore) et n'a rien dit."),
         Sentence(id: "fr-4", language: "fr",
                  text: "Il était en retard ; personne n'a rien dit."),
     ]
@@ -70,7 +70,7 @@ enum PunctuationCalibration {
     /// there and gives `oui, ,`. Knowing whether a mark is wanted or already present takes more
     /// than a find and replace, and until that exists these are the marks the model does not
     /// insert on its own: nobody gets a semicolon they did not ask for.
-    static let learnableMarks: Set<Character> = [":", ";", "«", "»", "\""]
+    static let learnableMarks: Set<Character> = [":", ";", "«", "»", "\"", "(", ")"]
 
     /// Everything treated as punctuation when splitting words apart, learnable or not.
     ///
@@ -78,7 +78,7 @@ enum PunctuationCalibration {
     /// off before the words can be lined up, whether or not a rule comes out of it: otherwise
     /// "parti." never matches "parti" and the alignment drifts from there on.
     static let punctuation: Set<Character> = [
-        ",", ".", ":", ";", "?", "!", "\"", "«", "»", "—", "…",
+        ",", ".", ":", ";", "?", "!", "\"", "«", "»", "—", "…", "(", ")",
     ]
 
     /// Compares a sentence we asked for with what came back, and reports what stood in for each
